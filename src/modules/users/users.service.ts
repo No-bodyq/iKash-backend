@@ -285,12 +285,17 @@ export class UsersService {
       );
     }
 
-    const user = (await this.repo.findById(id)) as AppUser | null;
-    if (!user) {
-      throw new AppException(ErrorCode.USER_NOT_FOUND, `User ${id} not found`);
-    }
-
     const anonymized = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.appUser.findUnique({
+        where: { userId: id },
+      });
+      if (!user) {
+        throw new AppException(
+          ErrorCode.USER_NOT_FOUND,
+          `User ${id} not found`,
+        );
+      }
+
       await tx.paymentMethod.deleteMany({ where: { userId: id } });
       await tx.chatMessage.updateMany({
         where: { senderId: id },

@@ -32,7 +32,7 @@ describe('UsersService', () => {
     chatMessage: { updateMany: jest.Mock };
     auditLog: { updateMany: jest.Mock };
     waitlist: { deleteMany: jest.Mock };
-    appUser: { update: jest.Mock };
+    appUser: { findUnique: jest.Mock; update: jest.Mock };
   };
 
   beforeEach(async () => {
@@ -52,7 +52,7 @@ describe('UsersService', () => {
       chatMessage: { updateMany: jest.fn() },
       auditLog: { updateMany: jest.fn() },
       waitlist: { deleteMany: jest.fn() },
-      appUser: { update: jest.fn() },
+      appUser: { findUnique: jest.fn(), update: jest.fn() },
     };
 
     mockPrismaService = {
@@ -280,14 +280,15 @@ describe('UsersService', () => {
     });
 
     it('throws when the user does not exist', async () => {
-      repo.findById.mockResolvedValue(null);
+      txClient.appUser.findUnique.mockResolvedValue(null);
 
       await expect(service.remove('user-1', 'user-1')).rejects.toThrow();
-      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+      expect(txClient.appUser.update).not.toHaveBeenCalled();
+      expect(txClient.paymentMethod.deleteMany).not.toHaveBeenCalled();
     });
 
     it('anonymizes linked PII and marks the account deleted instead of hard-deleting it', async () => {
-      repo.findById.mockResolvedValue({
+      txClient.appUser.findUnique.mockResolvedValue({
         userId: 'user-1',
         email: 'user@example.com',
       });
@@ -325,7 +326,10 @@ describe('UsersService', () => {
     });
 
     it('skips the waitlist cleanup when the user has no email on file', async () => {
-      repo.findById.mockResolvedValue({ userId: 'user-1', email: null });
+      txClient.appUser.findUnique.mockResolvedValue({
+        userId: 'user-1',
+        email: null,
+      });
       txClient.appUser.update.mockResolvedValue({ userId: 'user-1' });
 
       await service.remove('user-1', 'user-1');
